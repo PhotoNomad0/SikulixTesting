@@ -1,0 +1,8 @@
+click("WindowsStart.png")
+wait("SearchPrompt.png")
+type("calc"+Key.ENTER)
+wait(Pattern("CalcKeyBd.png").similar(0.58))
+click("1.png")
+click("PlusKey.png")
+click("1.png")
+click("1664383729251.png")
