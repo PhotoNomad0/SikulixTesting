@@ -1,6 +1,8 @@
 # Use control-F12 to abort
 import time
 start = time.time()
+pauseAtEachIteration = True
+
 action = Pattern("Running.png")
 wait(action)
 running = True
@@ -132,7 +134,7 @@ def getCheckDivisionsFromDisplayedMenu(region):
     
     for i in range(len(checks)):
         item = checks[i]["match"]
-        print i, "item: ", item
+        print i, "check boundary: ", item
 
     return checks
 
@@ -187,7 +189,9 @@ def iterateGroupSegment(config, autoScrolled):
 #    if autoScrolled:
 #       startY = region.y + region.h/3
 #       print "auto scrolled, setting startY = ", startY
-    
+
+    selectedY = 0
+    print "FInding selected group"
     results = getGroupsFromDisplayedMenu(config)
     if (results["selected"]):
         match = results["selected"]["match"]
@@ -207,13 +211,13 @@ def iterateGroupSegment(config, autoScrolled):
             print "Already expanded"
     
         div = results["selected"]["match"]
-        startY = div.y + div.h + checkHeight * 0.5
-        print "Starting at ", startY
+        selectedY = div.y + div.h
+        print "Starting check is at ", selectedY
     else:
         print "No Selection found"
 
     scrollBarRegion = config["scrollBarRegion"]
-    maxY = region.y + region.h
+    maxY = region.y + region.h + checkHeight*0.5
     print "maxY = ", maxY
     endAtGroup = None
     
@@ -222,8 +226,8 @@ def iterateGroupSegment(config, autoScrolled):
     for group in groups:
         match = group["match"]
         y = match.y
-        if y < startY:
-            print "Skipping group y ", y
+        if y < selectedY:
+            print "Skipping check y ", y
         else:
             print "Will end at group y", y
             maxY = y
@@ -237,39 +241,60 @@ def iterateGroupSegment(config, autoScrolled):
     checkHeight = config["checkSize"]
     maxGap = checkHeight * 1.4
     divisions = getCheckDivisionsFromDisplayedMenu(region)
+
     lastY = 10000
     steps = []
-    y = getYforDivider( divisions[0])
-    steps.append(y - checkHeight)
+    if selectedY:
+        startY = selectedY
+    else:
+        steps.append(region.y)
+        startY = getYforDivider( divisions[0])
+
+    print " starting Y ", startY
     for divider in divisions:
-        y = getYforDivider( divider)
+        y = getYforDivider(divider)
+        
+        if y < startY :
+            print "skipping low check ", y, ", startY ", startY
+            continue
+
+        if y > maxY :
+            print "skipping high check ", y, ", maxY ", maxY
+            continue
+            
+        delta = (y - lastY)
+        if (delta >= 0) and (delta < 5):
+            print "skipping check low delta ", y, ", lastY ", lastY
+            continue
+        
         while (y - lastY) > maxGap:
             newY = lastY + checkHeight
             steps.append(newY)
             lastY = newY
-            print "Filling in ", newY
+            print "Filling in missing check at", newY
+            
         steps.append(y)
         lastY = y
 
-    while y < maxY:
-        newY = y + checkHeight
-        steps.append(newY)
-        y = newY
-        
-    print "steps: ", steps
-    checkFailed = False
+    lastY = lastY + checkHeight
     
-    for y in steps:
-        centerClickY = y + checkHeight / 2
-        if centerClickY > maxY:
+    while lastY < maxY:
+        print "Filling in missing end check at ", lastY, ", maxY=", maxY
+        steps.append(lastY)
+        lastY = lastY + checkHeight
+        
+    print "Check Y's found: ", steps
+    checkFailed = False
+
+    print "Iterating checks, startY= ", startY, ", selectedY= ", selectedY
+    for i in range(0, len(steps)-1):
+        y = steps[i]
+        centerClickY = y + checkHeight * 0.5
+        print "Clicking on y= ", centerClickY
+        success = doCheck(config, y)
+        if not success:
+            checkFailed = True
             break;
-        if centerClickY > startY:
-            success = doCheck(config, y)
-            if not success:
-                checkFailed = True
-                break;
-        else:
-            print "skipping over check at ", centerClickY
 
     if running:
         autoScrolled = False
@@ -304,7 +329,22 @@ def iterateGroupSegment(config, autoScrolled):
         }
     
     return {}
-        
+
+def doPause():
+    global pauseAtEachIteration
+    global running
+    if pauseAtEachIteration:
+        doPause = popAsk("pause next iteration?")
+        if not doPause:
+            cancel = popAsk("cancel testing?")
+    
+            if cancel:
+                print "Cancelled"
+                running = False
+            else:
+                pauseAtEachIteration = False
+
+
 autoScrolled = False;
 checkFailed = False;
 page = 0
@@ -316,17 +356,13 @@ while not checkFailed and running:
 
     if not running:
         break
-    
-#    ok = popAsk("continue?")
-
-#    if not ok:
-#        print "Cancelled"
-#        break
 
     if results["checkFailed"]:
         break
 
-    autoScrolled = results["autoScrolled"]
+    doPause()
+    
+autoScrolled = results["autoScrolled"]
 
 
 # if scrolled
