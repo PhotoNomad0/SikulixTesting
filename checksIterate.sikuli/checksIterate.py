@@ -1,6 +1,7 @@
 # Use control-F12 to abort
-
-action = "Running.png"
+import time
+start = time.time()
+action = Pattern("Running.png")
 wait(action)
 running = True
 
@@ -12,17 +13,54 @@ def runHotkey (event) :
 Env.addHotkey(Key.F12, KeyModifier.CTRL, runHotkey)
 
 Settings.MouseMoveDelay = 0.125
+scrollBarRegion = Region(241,54,8,758)
+print "scrollBarRegion=", scrollBarRegion
+bottomScroll = "bottomScroll.png"
+print "bottomScroll = ", bottomScroll
+bottomScrollWidth = 9
+bottomScrollHeight = 9
+bottomScrollRegion = Region(scrollBarRegion.x-1, scrollBarRegion.y+scrollBarRegion.h-bottomScrollHeight+8,bottomScrollWidth+2,bottomScrollHeight+2)
+print "bottomScrollRegion=", bottomScrollRegion
 
 config = {
         "validateRunning": action,
         "checkSize": 40,
         "waitForValidate": 0.25,
         "menuRegion": Region(1,106,240,705),
-        "scrollBarRegion": Region(241,54,8,758)
+        "scrollBarRegion": scrollBarRegion,
+        "scrollBottomRegion": bottomScrollRegion,
+        "bottomScrollRegion": bottomScrollRegion,
         }
 
 print 'Running'
 
+# test scroll bottom
+#while running:
+#    bottomScrollRegion.highlight()
+#    sleep(5)
+#    bottomScrollRegion.highlightOff()
+#    atBottom = not bottomScrollRegion.exists(bottomScroll, 1)
+#    status = "atBottom: " + str(atBottom)
+#    print status
+#    ok = popAsk(status + ", continue?")
+#
+#    if not ok:        
+#        print "Cancelled"
+#        exit()
+
+def elapsedTime():
+    global start
+    secs = time.time() - start
+    if secs < 60:
+        return str(secs) + "secs"
+    else:
+        minutes = secs / 60
+        if minutes < 60:
+            return str(minutes) + "min"
+        else:
+            hours = minutes / 60
+            return str(hours) + "hr"
+                    
 def by_y(group):
     return group["match"].y
 
@@ -136,6 +174,7 @@ def doCheck(config, y):
 def iterateGroupSegment(config, autoScrolled):
     scrollBarRegion = config["scrollBarRegion"]
     checkHeight = config["checkSize"]
+    bottomScrollRegion = config["bottomScrollRegion"]
     print " scrollBarRegion = ", scrollBarRegion
     region = config["menuRegion"]
     print " region = ", region
@@ -145,9 +184,9 @@ def iterateGroupSegment(config, autoScrolled):
     startScrollBar = scrollBarRegion.getScreen().capture(scrollBarRegion)
     print " startScrollBar = ", startScrollBar
 
-    if autoScrolled:
-        startY = region.y + region.h/3
-        print "auto scrolled, setting startY = ", startY
+#    if autoScrolled:
+#       startY = region.y + region.h/3
+#       print "auto scrolled, setting startY = ", startY
     
     results = getGroupsFromDisplayedMenu(config)
     if (results["selected"]):
@@ -168,7 +207,7 @@ def iterateGroupSegment(config, autoScrolled):
             print "Already expanded"
     
         div = results["selected"]["match"]
-        startY = div.y + div.h
+        startY = div.y + div.h + checkHeight * 0.5
         print "Starting at ", startY
     else:
         print "No Selection found"
@@ -245,9 +284,17 @@ def iterateGroupSegment(config, autoScrolled):
                 print "Selecting next group = ", endAtGroup
                 click(endAtGroup)
             else:
-                scrollClickAt = Region(scrollBarRegion.x, maxY-2, scrollBarRegion.w, 2)  
-                print "Scrolling down ", scrollClickAt
-                click(scrollClickAt)
+                atBottom = not bottomScrollRegion.exists(bottomScroll, 1)
+                print "atBottom: " + str(atBottom)
+                if atBottom:
+                    print "Finished"
+                    global running
+                    running = False                
+                else:
+                    scrollClickAt = Region(scrollBarRegion.x, scrollBarRegion.y + scrollBarRegion.h, scrollBarRegion.w, 2)  
+                    print "Scrolling down ", scrollClickAt
+                    click(scrollClickAt)
+
     
         return {
             "scrollbarUnchanged": scrollbarUnchanged,
@@ -265,7 +312,7 @@ while not checkFailed and running:
     page = page + 1
     print "Starting Group ", page
     results = iterateGroupSegment(config, autoScrolled)
-    print "Group ", page, " results: ", results
+    print "Group ", page, ", elapsed time ", elapsedTime(), ", results: ", results
 
     if not running:
         break
