@@ -1,28 +1,33 @@
-# Use control-F12 to abort
+################################
+# iterates through all of checks starting with current location
+# Note: Use control-F12 to abort
+# Note: Use control-F11 to toggle pausing
+
 import time
 start = time.time()
-pauseAtEachIteration = True
+
+################################
+# images
 
 action = Pattern("Running.png")
-wait(action)
-running = True
+bottomScroll = "bottomScroll.png"
+selectedGroupExpanded = Pattern("SelectedGroupExpanded.png").similar(0.83)
+selectedGroupCollapsed = Pattern("SelectedGroupCollapsed.png").similar(0.83)
+deselectedGroupCollapsed = Pattern("deselectedGroupCollapsed.png").similar(0.83)
+unselectedDivider = Pattern("unselectedDivider.png").similar(0.74)
+beforeSelectedDivider = "beforeSelectedDivider.png"
+afterSelectedDivider = "afterSelectedDivider.png"
 
-def runHotkey (event) :
-    global running
-    print "Hot key abort"
-    running = False
-
-Env.addHotkey(Key.F12, KeyModifier.CTRL, runHotkey)
+################################
+# initial config
 
 Settings.MouseMoveDelay = 0.125
-scrollBarRegion = Region(241,54,8,758)
-print "scrollBarRegion=", scrollBarRegion
-bottomScroll = "bottomScroll.png"
-print "bottomScroll = ", bottomScroll
+pauseAtEachIteration = False
 bottomScrollWidth = 9
 bottomScrollHeight = 9
 bottomScrollRegion = Region(scrollBarRegion.x-1, scrollBarRegion.y+scrollBarRegion.h-bottomScrollHeight+8,bottomScrollWidth+2,bottomScrollHeight+2)
-print "bottomScrollRegion=", bottomScrollRegion
+scrollBarRegion = Region(241,54,8,758)
+highLightTime = 0 # set to zero to disable highlighting, otherwise set to how many seconds you want to wait on a highlight
 
 config = {
         "validateRunning": action,
@@ -33,6 +38,30 @@ config = {
         "scrollBottomRegion": bottomScrollRegion,
         "bottomScrollRegion": bottomScrollRegion,
         }
+
+################################
+# program
+
+wait(action)
+running = True
+
+def runHotkey (event) :
+    global running
+    print "Hot key abort"
+    running = False
+
+Env.addHotkey(Key.F12, KeyModifier.CTRL, runHotkey)
+
+def runTogglePause (event) :
+    global pauseAtEachIteration
+    pauseAtEachIteration = not pauseAtEachIteration
+    print "Pausing toggled to ", pauseAtEachIteration
+
+Env.addHotkey(Key.F11, KeyModifier.CTRL, runTogglePause)
+
+print "scrollBarRegion=", scrollBarRegion
+print "bottomScroll = ", bottomScroll
+print "bottomScrollRegion=", bottomScrollRegion
 
 print 'Running'
 
@@ -83,9 +112,6 @@ def findAllImages(region, groups, image, selected, expanded):
 def getGroupsFromDisplayedMenu(config):
     region = config["menuRegion"]
     print "Searching for Group Headers"
-    selectedGroupExpanded = Pattern("SelectedGroupExpanded.png").similar(0.83)
-    selectedGroupCollapsed = Pattern("SelectedGroupCollapsed.png").similar(0.83)
-    deselectedGroupCollapsed = Pattern("deselectedGroupCollapsed.png").similar(0.83)
     deselectedGroups = findAllImages(region, [], deselectedGroupCollapsed, selected = False, expanded = False)
     selectedCollapsed = findAllImages(region, [], selectedGroupCollapsed, selected = True, expanded = False)
     selectedExpanded = findAllImages(region, [], selectedGroupExpanded, selected = True, expanded = True)
@@ -122,9 +148,6 @@ def getGroupsFromDisplayedMenu(config):
 
 def getCheckDivisionsFromDisplayedMenu(region):
     print "Searching for check dividers in region ", region
-    unselectedDivider = Pattern("unselectedDivider.png").similar(0.74)
-    beforeSelectedDivider = "beforeSelectedDivider.png"
-    afterSelectedDivider = "afterSelectedDivider.png"
 
     checks = findAllImages(region, [], unselectedDivider, selected = False, expanded = False)
     checks = findAllImages(region, checks, beforeSelectedDivider, selected = True, expanded = False)
@@ -165,13 +188,19 @@ def getYforDivider(divider):
 
 def doCheck(config, y):
     success_ = False
-    region = Region(30, y, 169, 30)
+    region = Region(30, y - 4, 169, 25)
+    doHighLight(region)
     text = region.text()
     print "At y=", y, " found text: ", text
     click(region)
     success_ = verifyNotCrashed(config)
     return (success_)
 
+def doHighLight(region):
+    if highLightTime:
+        region.highlight()
+        sleep(highLightTime)
+        region.highlightOff()
 
 def iterateGroupSegment(config, autoScrolled):
     scrollBarRegion = config["scrollBarRegion"]
@@ -182,20 +211,17 @@ def iterateGroupSegment(config, autoScrolled):
     print " region = ", region
     startY = region.y + checkHeight * 0.3
     print "startY = ", startY
-    sleep(0.5)
+    sleep(0.125)
     startScrollBar = scrollBarRegion.getScreen().capture(scrollBarRegion)
     print " startScrollBar = ", startScrollBar
-
-#    if autoScrolled:
-#       startY = region.y + region.h/3
-#       print "auto scrolled, setting startY = ", startY
 
     selectedY = 0
     print "FInding selected group"
     results = getGroupsFromDisplayedMenu(config)
     if (results["selected"]):
         match = results["selected"]["match"]
-        region_ = Region(30, match.y, 169, 30)
+        region_ = Region(37, match.y - 10, 169, 35)
+        doHighLight(region_)
         text = region_.text()
         print "Starting at group ", text, " at ", region_
         
@@ -298,7 +324,7 @@ def iterateGroupSegment(config, autoScrolled):
 
     if running:
         autoScrolled = False
-        sleep(1)
+        sleep(0.125)
         scrollbarUnchanged = scrollBarRegion.exists(startScrollBar.getFile(), 1)
         if not scrollbarUnchanged:
             print "Scrollbar moved"
@@ -333,16 +359,34 @@ def iterateGroupSegment(config, autoScrolled):
 def doPause():
     global pauseAtEachIteration
     global running
-    if pauseAtEachIteration:
-        doPause = popAsk("pause next iteration?")
-        if not doPause:
-            cancel = popAsk("cancel testing?")
+    global highLightTime
     
-            if cancel:
-                print "Cancelled"
-                running = False
-            else:
-                pauseAtEachIteration = False
+    if pauseAtEachIteration:
+        continuePause = 'Continue with Pausing'
+        continueNoPause = 'Continue without Pausing'
+        quit = 'Abort testing'
+        noHighLight = 'Turn off Highlighting'
+        highLightOn = 'Turn on Highlighting'
+        myOptions = (continuePause, continueNoPause, highLightOn, quit)
+        if highLightTime:
+            myOptions = (continuePause, continueNoPause, noHighLight, quit)
+
+        result = select ("Paused! Pick an option:", options = myOptions)
+
+        if result == noHighLight:
+            print "No HighLighting"
+            highLightTime = 0
+            
+        elif result == highLightOn:
+            print "Turn Highlighing on"
+            highLightTime = 2
+            
+        elif result == quit:
+            print "Cancelled"
+            running = False
+        
+        elif result == continueNoPause:
+            pauseAtEachIteration = False
 
 
 autoScrolled = False;
