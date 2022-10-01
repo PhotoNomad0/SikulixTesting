@@ -125,8 +125,8 @@ def getGroupsFromDisplayedMenu(config):
         item = groups[i]
         print i, " expanded: ", item["expanded"], " selected: ", item["selected"], ", match: ", item["match"]
 
-    selected = None;
-    collapsed = False;
+    selected = None
+    collapsed = False
 
     if selectedCollapsed and len(selectedCollapsed):
         found = selectedCollapsed[0]
@@ -230,7 +230,7 @@ def iterateGroupSegment(config, autoScrolled):
             click(match)
             success = verifyNotCrashed(config)
             if not success:
-                print "crashed";
+                print "crashed"
             else:
                 results = getGroupsFromDisplayedMenu(config)
         else:
@@ -320,7 +320,7 @@ def iterateGroupSegment(config, autoScrolled):
         success = doCheck(config, y)
         if not success:
             checkFailed = True
-            break;
+            break
 
     if running:
         autoScrolled = False
@@ -389,8 +389,8 @@ def doPause():
             pauseAtEachIteration = False
 
 
-autoScrolled = False;
-checkFailed = False;
+autoScrolled = False
+checkFailed = False
 page = 0
 while not checkFailed and running:
     page = page + 1
@@ -406,7 +406,7 @@ while not checkFailed and running:
 
     doPause()
     
-autoScrolled = results["autoScrolled"]
+    autoScrolled = results["autoScrolled"]
 
 
 # if scrolled
